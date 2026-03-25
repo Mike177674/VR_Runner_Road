@@ -25,6 +25,11 @@ public class GameManager : MonoBehaviour
             mover.enabled = false;
         }
 
+        foreach (var jumpController in FindObjectsByType<RunnerJumpController>(FindObjectsSortMode.None))
+        {
+            jumpController.enabled = false;
+        }
+
         // Optional: reload scene after delay for testing
         Invoke(nameof(Restart), 2f);
     }

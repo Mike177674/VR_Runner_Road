@@ -29,11 +29,13 @@ public class XRTracker : MonoBehaviour
     [SerializeField] private InputActionReference recalibrateAction;
     [SerializeField] private InputActionReference leftGrabAction;
     [SerializeField] private InputActionReference rightGrabAction;
+    [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private bool enableInputActions = true;
     [SerializeField] private bool allowKeyboardDebugFallback = true;
     [SerializeField] private Key recalibrateKey = Key.R;
     [SerializeField] private Key leftGrabKey = Key.Q;
     [SerializeField] private Key rightGrabKey = Key.E;
+    [SerializeField] private Key jumpKey = Key.Space;
 
     private Vector3 rigStartPosition;
     private Quaternion rigStartRotation;
@@ -42,6 +44,8 @@ public class XRTracker : MonoBehaviour
     private bool ownsRecalibrateAction;
     private bool ownsLeftGrabAction;
     private bool ownsRightGrabAction;
+    private bool ownsJumpAction;
+    private bool previousJumpDevicePressed;
     private Transform runtimeLeftHandAnchor;
     private Transform runtimeRightHandAnchor;
 
@@ -55,6 +59,8 @@ public class XRTracker : MonoBehaviour
     public bool RightGrabActive { get; private set; }
     public float LeftGrabStrength { get; private set; }
     public float RightGrabStrength { get; private set; }
+    public bool JumpHeld { get; private set; }
+    public bool JumpPressedThisFrame { get; private set; }
     public Transform HeadTransform => head;
     public Transform LeftHandTransform => leftHand != null ? leftHand : runtimeLeftHandAnchor;
     public Transform RightHandTransform => rightHand != null ? rightHand : runtimeRightHandAnchor;
@@ -80,6 +86,7 @@ public class XRTracker : MonoBehaviour
         ownsRecalibrateAction = EnableActionIfNeeded(recalibrateAction);
         ownsLeftGrabAction = EnableActionIfNeeded(leftGrabAction);
         ownsRightGrabAction = EnableActionIfNeeded(rightGrabAction);
+        ownsJumpAction = EnableActionIfNeeded(jumpAction);
     }
 
     private void OnDisable()
@@ -87,9 +94,14 @@ public class XRTracker : MonoBehaviour
         DisableActionIfOwned(recalibrateAction, ownsRecalibrateAction);
         DisableActionIfOwned(leftGrabAction, ownsLeftGrabAction);
         DisableActionIfOwned(rightGrabAction, ownsRightGrabAction);
+        DisableActionIfOwned(jumpAction, ownsJumpAction);
         ownsRecalibrateAction = false;
         ownsLeftGrabAction = false;
         ownsRightGrabAction = false;
+        ownsJumpAction = false;
+        previousJumpDevicePressed = false;
+        JumpHeld = false;
+        JumpPressedThisFrame = false;
     }
 
     private void Awake()
@@ -111,6 +123,7 @@ public class XRTracker : MonoBehaviour
         UpdateHandAnchors();
         UpdateRunnerState();
         UpdateGrabState();
+        UpdateJumpState();
         UpdateWorldSpeed();
 
         if (WasPressedThisFrame(recalibrateAction, recalibrateKey))
@@ -334,6 +347,17 @@ public class XRTracker : MonoBehaviour
         CurrentMoveSpeed = Mathf.MoveTowards(CurrentMoveSpeed, targetSpeed, acceleration * Time.deltaTime);
     }
 
+    private void UpdateJumpState()
+    {
+        bool actionHeld = IsPressed(jumpAction, jumpKey);
+        bool actionPressedThisFrame = WasPressedThisFrame(jumpAction, jumpKey);
+        bool devicePressed = IsBoolFeaturePressed(XRNode.RightHand, XRCommonUsages.primaryButton);
+
+        JumpHeld = actionHeld || devicePressed;
+        JumpPressedThisFrame = actionPressedThisFrame || (devicePressed && !previousJumpDevicePressed);
+        previousJumpDevicePressed = devicePressed;
+    }
+
     private static float NormalizeSignedAngle(float angle)
     {
         angle %= 360f;
@@ -359,6 +383,14 @@ public class XRTracker : MonoBehaviour
 
         Keyboard keyboard = Keyboard.current;
         return keyboard != null && keyboard[fallbackKey].wasPressedThisFrame;
+    }
+
+    private static bool IsBoolFeaturePressed(XRNode node, InputFeatureUsage<bool> featureUsage)
+    {
+        XRInputDevice device = InputDevices.GetDeviceAtXRNode(node);
+        return device.isValid
+            && device.TryGetFeatureValue(featureUsage, out bool pressed)
+            && pressed;
     }
 
     private bool IsPressed(InputActionReference actionReference, Key fallbackKey)

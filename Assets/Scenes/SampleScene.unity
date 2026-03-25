@@ -742,6 +742,7 @@ GameObject:
   - component: {fileID: 1079012792}
   - component: {fileID: 1079012791}
   - component: {fileID: 1079012796}
+  - component: {fileID: 1079012797}
   m_Layer: 0
   m_Name: Pretend Person
   m_TagString: Player
@@ -892,6 +893,24 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &1079012797
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1079012790}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1c8f8b76db64cfdb2f4d67a9a1cc321, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  runner: {fileID: 0}
+  jumpAction: {fileID: 0}
+  jumpVelocity: 5.75
+  jumpCooldown: 0.15
+  groundedGraceTime: 0.1
+  groundedNormalThreshold: 0.5
 --- !u!1 &1144190728
 GameObject:
   m_ObjectHideFlags: 0
