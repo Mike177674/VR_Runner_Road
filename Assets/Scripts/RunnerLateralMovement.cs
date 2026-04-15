@@ -9,10 +9,12 @@ public class RunnerLateralMovement : MonoBehaviour
     [SerializeField] private float maxSideDistance = 2f;
 
     private Rigidbody cachedRigidbody;
+    private float laneCenterZ;
 
     private void Awake()
     {
         cachedRigidbody = GetComponent<Rigidbody>();
+        laneCenterZ = transform.position.z;
     }
 
     private void FixedUpdate()
@@ -21,19 +23,23 @@ public class RunnerLateralMovement : MonoBehaviour
         if (Keyboard.current.leftArrowKey.isPressed) input = -1f;
         if (Keyboard.current.rightArrowKey.isPressed) input = 1f;
 
-        // Use transform.right so rotation is respected
-        Vector3 lateralVelocity = transform.right * input * moveSpeed;
+        // Road sections move along world X, so lane changes should happen across world Z.
+        float lateralOffset = transform.position.z - laneCenterZ;
+        float desiredLateralVelocity = -input * moveSpeed;
 
-        // Clamp using dot product against local right axis
-        float lateralPos = Vector3.Dot(transform.position, transform.right);
-        if ((lateralPos <= -maxSideDistance && input < 0) ||
-            (lateralPos >= maxSideDistance && input > 0))
-            lateralVelocity = Vector3.zero;
+        if ((lateralOffset <= -maxSideDistance && desiredLateralVelocity < 0f) ||
+            (lateralOffset >= maxSideDistance && desiredLateralVelocity > 0f))
+        {
+            desiredLateralVelocity = 0f;
+        }
 
         Vector3 vel = cachedRigidbody.linearVelocity;
-        // Preserve Y (gravity/jump), replace lateral component
-        vel -= Vector3.Project(vel, transform.right);
-        vel += lateralVelocity;
+        vel.z = desiredLateralVelocity;
         cachedRigidbody.linearVelocity = vel;
+
+        // Keep the runner inside the lane bounds even after a wall collision nudges it outward.
+        Vector3 position = cachedRigidbody.position;
+        position.z = Mathf.Clamp(position.z, laneCenterZ - maxSideDistance, laneCenterZ + maxSideDistance);
+        cachedRigidbody.position = position;
     }
 }

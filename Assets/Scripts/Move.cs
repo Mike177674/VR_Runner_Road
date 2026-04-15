@@ -4,18 +4,16 @@ using UnityEngine;
 
 public class Move : MonoBehaviour
 {
-    float speed = 1f;
-    // Start is called before the first frame update
-    void Start()
-    {
-
-    }
+    [SerializeField] private float baseUnitsPerSecond = 4f;
+    [SerializeField] private float initialSpeedMultiplier = 1f;
+    [SerializeField] private float accelerationPerSecond = 0.06f;
 
     // Update is called once per frame
     void Update()
     {
-        transform.position += new Vector3(-4, 0, 0) * Time.deltaTime * speed;
-        speed += 0.001f;
+        // All road pieces use the same run-time speed so spawned sections stay aligned.
+        float currentSpeedMultiplier = initialSpeedMultiplier + (Time.time * accelerationPerSecond);
+        transform.position += Vector3.left * (baseUnitsPerSecond * currentSpeedMultiplier * Time.deltaTime);
     }
     
     

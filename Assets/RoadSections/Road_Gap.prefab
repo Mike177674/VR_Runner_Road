@@ -12,10 +12,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: Road_Gap
       objectReference: {fileID: 0}
-    - target: {fileID: 6815777682943507102, guid: 3f7c3543c92add54c8525b097283f26a, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 40
-      objectReference: {fileID: 0}
     - target: {fileID: 8728160611983213134, guid: 3f7c3543c92add54c8525b097283f26a, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

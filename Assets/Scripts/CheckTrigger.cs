@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class SectionTrigger : MonoBehaviour
 {
@@ -12,37 +13,52 @@ public class SectionTrigger : MonoBehaviour
     public int minEasySectionGap = 2;
 
     private int sectionsSinceObstacle = 0;
+    private readonly HashSet<int> processedTriggerIds = new();
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.gameObject.CompareTag("Trigger"))
         {
-            SpawnNextSection();
+            if (!processedTriggerIds.Add(other.GetInstanceID()))
+            {
+                return;
+            }
+
+            Transform currentSection = other.transform.parent != null ? other.transform.parent : other.transform;
+            SpawnNextSection(currentSection);
         }
     }
 
-    void SpawnNextSection()
+    void SpawnNextSection(Transform currentSection)
     {
         GameObject chosen;
+        GameObject easySection = roadSections != null && roadSections.Length > 0 ? roadSections[0] : null;
 
-        if (sectionsSinceObstacle < minEasySectionGap)
+        if (easySection != null && sectionsSinceObstacle < minEasySectionGap)
         {
-            // Force an empty/easy section
-            chosen = roadSections[0]; // Assumes index 0 = RoadSection_Empty
+            // Force an easy section between obstacle sections.
+            chosen = easySection;
             sectionsSinceObstacle++;
         }
         else
         {
-            // Pick randomly from all sections
             chosen = roadSections[Random.Range(0, roadSections.Length)];
 
-            // Reset counter if we just spawned a non-empty section
-            if (chosen.name.Contains("Empty"))
+            if (chosen == easySection)
                 sectionsSinceObstacle++;
             else
                 sectionsSinceObstacle = 0;
         }
 
-        Instantiate(chosen, spawnPosition, Quaternion.identity);
+        Vector3 nextSpawnPosition = spawnPosition;
+        Quaternion nextSpawnRotation = Quaternion.identity;
+
+        if (currentSection != null)
+        {
+            nextSpawnPosition = currentSection.position + spawnPosition;
+            nextSpawnRotation = currentSection.rotation;
+        }
+
+        Instantiate(chosen, nextSpawnPosition, nextSpawnRotation);
     }
 }
