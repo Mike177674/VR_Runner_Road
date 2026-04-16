@@ -62,8 +62,8 @@ public class XRTracker : MonoBehaviour
     public bool JumpHeld { get; private set; }
     public bool JumpPressedThisFrame { get; private set; }
     public Transform HeadTransform => head;
-    public Transform LeftHandTransform => leftHand != null ? leftHand : runtimeLeftHandAnchor;
-    public Transform RightHandTransform => rightHand != null ? rightHand : runtimeRightHandAnchor;
+    public Transform LeftHandTransform => GetPreferredHandTransform(leftHand, runtimeLeftHandAnchor);
+    public Transform RightHandTransform => GetPreferredHandTransform(rightHand, runtimeRightHandAnchor);
     public Vector3 RunnerCenter => pinRigToStart ? rigStartPosition : transform.position;
     public Vector3 RunnerForward
     {
@@ -177,17 +177,19 @@ public class XRTracker : MonoBehaviour
             }
         }
 
-        if (createRuntimeHandAnchors)
+        if (!createRuntimeHandAnchors)
         {
-            if (leftHand == null && runtimeLeftHandAnchor == null)
-            {
-                runtimeLeftHandAnchor = CreateRuntimeHandAnchor("Runtime Left Hand Anchor");
-            }
+            return;
+        }
 
-            if (rightHand == null && runtimeRightHandAnchor == null)
-            {
-                runtimeRightHandAnchor = CreateRuntimeHandAnchor("Runtime Right Hand Anchor");
-            }
+        if (runtimeLeftHandAnchor == null)
+        {
+            runtimeLeftHandAnchor = CreateRuntimeHandAnchor("Runtime Left Hand Anchor");
+        }
+
+        if (runtimeRightHandAnchor == null)
+        {
+            runtimeRightHandAnchor = CreateRuntimeHandAnchor("Runtime Right Hand Anchor");
         }
     }
 
@@ -202,18 +204,24 @@ public class XRTracker : MonoBehaviour
 
     private void UpdateHandAnchors()
     {
-        if (leftHand == null)
+        if (leftHand != null)
         {
-            UpdateRuntimeHandAnchor(XRNode.LeftHand, runtimeLeftHandAnchor);
+            UpdateTrackedHandTransform(XRNode.LeftHand, leftHand);
         }
 
-        if (rightHand == null)
+        if (rightHand != null)
         {
-            UpdateRuntimeHandAnchor(XRNode.RightHand, runtimeRightHandAnchor);
+            UpdateTrackedHandTransform(XRNode.RightHand, rightHand);
+        }
+
+        if (createRuntimeHandAnchors)
+        {
+            UpdateTrackedHandTransform(XRNode.LeftHand, runtimeLeftHandAnchor);
+            UpdateTrackedHandTransform(XRNode.RightHand, runtimeRightHandAnchor);
         }
     }
 
-    private void UpdateRuntimeHandAnchor(XRNode node, Transform anchor)
+    private void UpdateTrackedHandTransform(XRNode node, Transform anchor)
     {
         if (anchor == null)
         {
@@ -367,6 +375,16 @@ public class XRTracker : MonoBehaviour
         }
 
         return angle;
+    }
+
+    private static Transform GetPreferredHandTransform(Transform sceneHand, Transform runtimeHand)
+    {
+        if (runtimeHand != null && runtimeHand.gameObject.activeInHierarchy)
+        {
+            return runtimeHand;
+        }
+
+        return sceneHand != null ? sceneHand : runtimeHand;
     }
 
     private bool WasPressedThisFrame(InputActionReference actionReference, Key fallbackKey)
