@@ -9,7 +9,8 @@ public class RunnerJumpController : MonoBehaviour
     [SerializeField] private InputActionReference jumpAction;
 
     [Header("Jump")]
-    [SerializeField, Min(0.1f)] private float jumpVelocity = 5.75f;
+    [SerializeField, Min(0.1f)] private float jumpVelocity = 5.1f;
+    [SerializeField, Min(0.1f)] private float highSpeedJumpVelocity = 4.5f;
     [SerializeField, Min(0f)] private float jumpCooldown = 0.15f;
     [SerializeField, Min(0f)] private float groundedGraceTime = 0.1f;
     [SerializeField, Range(0f, 1f)] private float groundedNormalThreshold = 0.5f;
@@ -69,7 +70,7 @@ public class RunnerJumpController : MonoBehaviour
             velocity.y = 0f;
         }
 
-        velocity.y = jumpVelocity;
+        velocity.y = GetCurrentJumpVelocity();
         cachedRigidbody.linearVelocity = velocity;
         lastGroundedTime = float.NegativeInfinity;
         lastJumpTime = Time.time;
@@ -103,6 +104,27 @@ public class RunnerJumpController : MonoBehaviour
     private bool CanJump()
     {
         return IsGrounded && Time.time - lastJumpTime >= jumpCooldown;
+    }
+
+    private float GetCurrentJumpVelocity()
+    {
+        float baseJumpVelocity = jumpVelocity;
+        float topSpeedJumpVelocity = highSpeedJumpVelocity;
+        float speedProgress = 0f;
+
+        if (GameManager.Instance != null)
+        {
+            baseJumpVelocity = GameManager.Instance.CurrentJumpVelocity;
+            topSpeedJumpVelocity = GameManager.Instance.CurrentHighSpeedJumpVelocity;
+            speedProgress = GameManager.Instance.CurrentWorldSpeedProgress;
+        }
+
+        if (topSpeedJumpVelocity >= baseJumpVelocity)
+        {
+            return baseJumpVelocity;
+        }
+
+        return Mathf.Lerp(baseJumpVelocity, topSpeedJumpVelocity, speedProgress);
     }
 
     private void CacheGroundContact(Collision collision)

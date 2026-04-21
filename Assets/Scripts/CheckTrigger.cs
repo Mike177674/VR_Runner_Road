@@ -33,8 +33,11 @@ public class SectionTrigger : MonoBehaviour
     {
         GameObject chosen;
         GameObject easySection = roadSections != null && roadSections.Length > 0 ? roadSections[0] : null;
+        int effectiveMinEasySectionGap = GameManager.Instance != null
+            ? GameManager.Instance.CurrentMinEasySectionGap
+            : minEasySectionGap;
 
-        if (easySection != null && sectionsSinceObstacle < minEasySectionGap)
+        if (easySection != null && sectionsSinceObstacle < effectiveMinEasySectionGap)
         {
             // Force an easy section between obstacle sections.
             chosen = easySection;

@@ -521,7 +521,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RunnerJumpController
   runner: {fileID: 0}
   jumpAction: {fileID: 0}
-  jumpVelocity: 5.75
+  jumpVelocity: 5.1
+  highSpeedJumpVelocity: 4.5
   jumpCooldown: 0.15
   groundedGraceTime: 0.1
   groundedNormalThreshold: 0.5
@@ -1083,13 +1084,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: '::'
   gameTitle: VR Runner Road
-  menuWidth: 420
-  menuHeight: 250
-  titleFontSize: 30
-  bodyFontSize: 20
+  menuWidth: 600
+  menuHeight: 388
+  titleFontSize: 34
+  bodyFontSize: 18
   buttonFontSize: 20
   hudFontSize: 22
-  scorePerSecond: 10
+  baseScorePerSecond: 10
 --- !u!4 &540019390
 Transform:
   m_ObjectHideFlags: 0
@@ -1652,7 +1653,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   runner: {fileID: 0}
   jumpAction: {fileID: 0}
-  jumpVelocity: 5.75
+  jumpVelocity: 5.1
+  highSpeedJumpVelocity: 4.5
   jumpCooldown: 0.15
   groundedGraceTime: 0.1
   groundedNormalThreshold: 0.5
