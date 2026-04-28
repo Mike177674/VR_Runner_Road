@@ -5,10 +5,13 @@ using UnityEngine.InputSystem;
 public class RunnerLateralMovement : MonoBehaviour
 {
     [Header("Movement")]
+    [SerializeField] private InputActionReference moveAction;
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float maxSideDistance = 2f;
+    [SerializeField, Range(0f, 1f)] private float inputDeadzone = 0.2f;
 
     private Rigidbody cachedRigidbody;
+    private InputAction fallbackMoveAction;
     private float laneCenterZ;
 
     private void Awake()
@@ -17,11 +20,19 @@ public class RunnerLateralMovement : MonoBehaviour
         laneCenterZ = transform.position.z;
     }
 
+    private void OnEnable()
+    {
+        EnsureFallbackMoveAction();
+    }
+
+    private void OnDisable()
+    {
+        DisableFallbackMoveAction();
+    }
+
     private void FixedUpdate()
     {
-        float input = 0f;
-        if (Keyboard.current.leftArrowKey.isPressed) input = -1f;
-        if (Keyboard.current.rightArrowKey.isPressed) input = 1f;
+        float input = ReadLateralInput();
 
         // Road sections move along world X, so lane changes should happen across world Z.
         float lateralOffset = transform.position.z - laneCenterZ;
@@ -41,5 +52,66 @@ public class RunnerLateralMovement : MonoBehaviour
         Vector3 position = cachedRigidbody.position;
         position.z = Mathf.Clamp(position.z, laneCenterZ - maxSideDistance, laneCenterZ + maxSideDistance);
         cachedRigidbody.position = position;
+    }
+
+    private float ReadLateralInput()
+    {
+        float input = 0f;
+        if (moveAction != null && moveAction.action != null)
+        {
+            Vector2 moveVector = moveAction.action.ReadValue<Vector2>();
+            input = moveVector.x;
+        }
+        else if (fallbackMoveAction != null)
+        {
+            Vector2 moveVector = fallbackMoveAction.ReadValue<Vector2>();
+            input = moveVector.x;
+        }
+
+        if (Mathf.Abs(input) < inputDeadzone)
+        {
+            input = 0f;
+        }
+
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            if (keyboard.leftArrowKey.isPressed)
+            {
+                input = -1f;
+            }
+
+            if (keyboard.rightArrowKey.isPressed)
+            {
+                input = 1f;
+            }
+        }
+
+        return Mathf.Clamp(input, -1f, 1f);
+    }
+
+    private void EnsureFallbackMoveAction()
+    {
+        if (moveAction != null || fallbackMoveAction != null)
+        {
+            return;
+        }
+
+        fallbackMoveAction = new InputAction("RunnerMove", InputActionType.Value);
+        fallbackMoveAction.AddBinding("<XRController>{LeftHand}/primary2DAxis");
+        fallbackMoveAction.AddBinding("<Gamepad>/leftStick");
+        fallbackMoveAction.Enable();
+    }
+
+    private void DisableFallbackMoveAction()
+    {
+        if (fallbackMoveAction == null)
+        {
+            return;
+        }
+
+        fallbackMoveAction.Disable();
+        fallbackMoveAction.Dispose();
+        fallbackMoveAction = null;
     }
 }

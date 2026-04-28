@@ -5,6 +5,9 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
+/.utmp/
+/*_BackUpThisFolder_ButDontShipItWithYourGame/
+/*.apk
 *.suo
 *.user
 *.pidb
