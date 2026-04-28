@@ -351,6 +351,12 @@ public class XRTracker : MonoBehaviour
 
     private void UpdateWorldSpeed()
     {
+        if (GameManager.Instance != null)
+        {
+            CurrentMoveSpeed = GameManager.Instance.CurrentWorldSpeed;
+            return;
+        }
+
         float targetSpeed = Mathf.Max(moveSpeed, maxMoveSpeed);
         CurrentMoveSpeed = Mathf.MoveTowards(CurrentMoveSpeed, targetSpeed, acceleration * Time.deltaTime);
     }
