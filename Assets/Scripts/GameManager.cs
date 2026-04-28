@@ -106,6 +106,8 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     public bool IsPlaying => state == GameState.Playing;
+    public bool IsPreGame => state == GameState.PreGame;
+    public string GameTitle => gameTitle;
     public int CurrentScore => CalculateScore(currentRunTime);
     public int HighScore => GetHighScore(CurrentMode);
     public float CurrentWorldSpeed => EvaluateWorldSpeed(currentRunTime, GetActiveProfile());
@@ -428,7 +430,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void SelectMode(GameMode mode)
+    public void SelectMode(GameMode mode)
     {
         if (selectedMode == mode)
         {
@@ -437,6 +439,32 @@ public class GameManager : MonoBehaviour
 
         selectedMode = mode;
         SaveSelectedMode(mode);
+    }
+
+    public string GetModeSummary(GameMode mode)
+    {
+        DifficultyProfile profile = GetProfile(mode);
+        return $"{profile.Label} | {FormatScoreMultiplier(profile.ScoreMultiplier)}";
+    }
+
+    public int GetHighScoreForMode(GameMode mode)
+    {
+        return GetHighScore(mode);
+    }
+
+    public float GetBestPeakSpeedForMode(GameMode mode)
+    {
+        return GetBestPeakSpeed(mode);
+    }
+
+    public string GetModeLabel(GameMode mode)
+    {
+        return GetProfile(mode).Label;
+    }
+
+    public void SetWorldSpaceMenuPresentation(bool worldSpaceActive)
+    {
+        // World-space UI is handled by VRMenuUI. Keep this as a compatibility hook.
     }
 
     private void EnsureGuiStyles()
@@ -644,7 +672,6 @@ public class GameManager : MonoBehaviour
         return score.ToString();
     }
 
-vrImplementation
     private void RefreshXrState()
     {
         bool xrNowActive = IsXrDisplayRunning();
@@ -936,13 +963,13 @@ vrImplementation
         if (state == GameState.PreGame)
         {
             xrMenuTitle.text = gameTitle;
-            xrMenuStatus.text = $"High Score: {FormatScore(highScore)}";
+            xrMenuStatus.text = $"High Score: {FormatScore(GetHighScore(CurrentMode))}";
             xrMenuAction.text = "Press A / Trigger / Space to Play";
             return;
         }
 
         xrMenuTitle.text = "Run Failed";
-        xrMenuStatus.text = $"Score: {FormatScore(CurrentScore)}   Best: {FormatScore(highScore)}";
+        xrMenuStatus.text = $"Score: {FormatScore(CurrentScore)}   Best: {FormatScore(GetHighScore(activeMode))}";
         xrMenuAction.text = "Press A / Trigger / Space to Continue";
     }
 
@@ -1147,5 +1174,4 @@ vrImplementation
         texture.Apply();
         return texture;
     }
-main
 }
