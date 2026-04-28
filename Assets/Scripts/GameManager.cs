@@ -107,6 +107,8 @@ public class GameManager : MonoBehaviour
 
     public bool IsPlaying => state == GameState.Playing;
     public bool IsPreGame => state == GameState.PreGame;
+    public bool IsXrActive => isXrActive;
+    public bool IsXrSessionDetected => xrSessionDetected;
     public string GameTitle => gameTitle;
     public int CurrentScore => CalculateScore(currentRunTime);
     public int HighScore => GetHighScore(CurrentMode);
@@ -151,6 +153,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float xrHeightOffset = 0.1f;
     [SerializeField, Min(0.5f)] private float xrMenuDistance = 2f;
     [SerializeField] private float xrMenuVerticalOffset = -0.1f;
+    [SerializeField] private bool enableLegacyMenus = false;
 
     private GameState state = GameState.PreGame;
     private GameMode selectedMode = GameMode.Medium;
@@ -169,6 +172,7 @@ public class GameManager : MonoBehaviour
     private readonly System.Collections.Generic.List<XRDisplaySubsystem> xrDisplays = new();
     private InputAction menuConfirmAction;
     private bool isXrActive;
+    private bool xrSessionDetected;
     private bool xrSetupApplied;
     private bool xrVisualsHidden;
     private Transform playerRoot;
@@ -181,6 +185,7 @@ public class GameManager : MonoBehaviour
     private TextMesh xrMenuStatus;
     private TextMesh xrMenuAction;
     private GUIStyle hudShadowStyle;
+    private bool useWorldSpaceMenuPresentation;
 
     private void Awake()
     {
@@ -267,7 +272,20 @@ public class GameManager : MonoBehaviour
 
     public void Restart()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (!string.IsNullOrEmpty(activeScene.path))
+        {
+            SceneManager.LoadScene(activeScene.path);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(activeScene.name))
+        {
+            SceneManager.LoadScene(activeScene.name);
+            return;
+        }
+
+        Debug.LogError("GameManager: Unable to restart because the active scene has no valid name/path.");
     }
 
     public void ReturnToStartScreen()
@@ -295,7 +313,12 @@ public class GameManager : MonoBehaviour
 
     private void OnGUI()
     {
-        if (isXrActive)
+        if (!enableLegacyMenus)
+        {
+            return;
+        }
+
+        if (isXrActive || useWorldSpaceMenuPresentation || xrSessionDetected)
         {
             return;
         }
@@ -464,7 +487,11 @@ public class GameManager : MonoBehaviour
 
     public void SetWorldSpaceMenuPresentation(bool worldSpaceActive)
     {
-        // World-space UI is handled by VRMenuUI. Keep this as a compatibility hook.
+        useWorldSpaceMenuPresentation = worldSpaceActive;
+        if (xrMenuRoot != null)
+        {
+            xrMenuRoot.SetActive(!worldSpaceActive && state != GameState.Playing);
+        }
     }
 
     private void EnsureGuiStyles()
@@ -676,6 +703,7 @@ public class GameManager : MonoBehaviour
     {
         bool xrNowActive = IsXrDisplayRunning();
         isXrActive = xrNowActive;
+        xrSessionDetected |= xrNowActive;
 
         if (!isXrActive)
         {
@@ -724,8 +752,11 @@ public class GameManager : MonoBehaviour
 
         CachePlayerVisuals();
         SetPlayerVisualsEnabled(false);
-        EnsureXrMenu();
-        UpdateXrMenuState();
+        if (!useWorldSpaceMenuPresentation)
+        {
+            EnsureXrMenu();
+            UpdateXrMenuState();
+        }
         return true;
     }
 
@@ -872,6 +903,11 @@ public class GameManager : MonoBehaviour
 
     private void UpdateMenuInput()
     {
+        if (useWorldSpaceMenuPresentation)
+        {
+            return;
+        }
+
         if (menuConfirmAction == null || !menuConfirmAction.WasPressedThisFrame())
         {
             return;
@@ -891,6 +927,24 @@ public class GameManager : MonoBehaviour
 
     private void EnsureXrMenu()
     {
+        if (!enableLegacyMenus)
+        {
+            if (xrMenuRoot != null)
+            {
+                xrMenuRoot.SetActive(false);
+            }
+            return;
+        }
+
+        if (FindFirstObjectByType<VRMenuUI>() != null)
+        {
+            if (xrMenuRoot != null)
+            {
+                xrMenuRoot.SetActive(false);
+            }
+            return;
+        }
+
         if (xrMenuRoot != null)
         {
             return;
@@ -948,6 +1002,33 @@ public class GameManager : MonoBehaviour
 
     private void UpdateXrMenuState()
     {
+        if (!enableLegacyMenus)
+        {
+            if (xrMenuRoot != null && xrMenuRoot.activeSelf)
+            {
+                xrMenuRoot.SetActive(false);
+            }
+            return;
+        }
+
+        if (FindFirstObjectByType<VRMenuUI>() != null)
+        {
+            if (xrMenuRoot != null && xrMenuRoot.activeSelf)
+            {
+                xrMenuRoot.SetActive(false);
+            }
+            return;
+        }
+
+        if (useWorldSpaceMenuPresentation)
+        {
+            if (xrMenuRoot != null && xrMenuRoot.activeSelf)
+            {
+                xrMenuRoot.SetActive(false);
+            }
+            return;
+        }
+
         if (!isXrActive || xrMenuRoot == null)
         {
             return;
@@ -975,6 +1056,16 @@ public class GameManager : MonoBehaviour
 
     private void UpdateXrMenuPose()
     {
+        if (!enableLegacyMenus)
+        {
+            return;
+        }
+
+        if (useWorldSpaceMenuPresentation)
+        {
+            return;
+        }
+
         if (!isXrActive || xrMenuRoot == null || !xrMenuRoot.activeSelf || xrHead == null)
         {
             return;

@@ -2,12 +2,16 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.XR;
+using XRCommonUsages = UnityEngine.XR.CommonUsages;
+using XRInputDevice = UnityEngine.XR.InputDevice;
 
 [DefaultExecutionOrder(100)]
 public class VRMenuUI : MonoBehaviour
 {
+    private static VRMenuUI instance;
     private static readonly Color PanelTint = new Color(0.04f, 0.07f, 0.11f, 0.56f);
     private static readonly Color PanelBorderTint = new Color(0.91f, 0.95f, 1f, 0.12f);
     private static readonly Color InfoTint = new Color(0.09f, 0.13f, 0.19f, 0.36f);
@@ -30,6 +34,8 @@ public class VRMenuUI : MonoBehaviour
     [SerializeField] private Vector3 panelOffset = new Vector3(0f, -0.08f, 0f);
     [SerializeField, Min(0.0005f)] private float panelWorldScale = 0.0015f;
     [SerializeField, Min(0.5f)] private float interactionDistance = 4f;
+    [SerializeField, Range(0.1f, 1f)] private float joystickNavigationDeadzone = 0.45f;
+    [SerializeField, Min(0.05f)] private float joystickNavigationRepeatDelay = 0.22f;
 
     private readonly List<MenuButtonView> buttons = new();
     private readonly Dictionary<Collider, MenuButtonView> buttonLookup = new();
@@ -54,11 +60,15 @@ public class VRMenuUI : MonoBehaviour
     private MenuButtonView actionButton;
     private MenuButtonView hoveredButton;
     private bool worldMenuActive;
+    private bool worldMenuActivatedThisSession;
+    private bool waitForSubmitRelease = true;
+    private bool menuWasInteractiveLastFrame;
+    private float nextJoystickNavigationTime;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
-        if (FindFirstObjectByType<VRMenuUI>() != null)
+        if (instance != null || FindFirstObjectByType<VRMenuUI>() != null)
         {
             return;
         }
@@ -69,8 +79,17 @@ public class VRMenuUI : MonoBehaviour
 
     private void Awake()
     {
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+        DontDestroyOnLoad(gameObject);
         uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         BuildMenu();
+        SceneManager.sceneLoaded += HandleSceneLoaded;
     }
 
     private void Update()
@@ -78,8 +97,16 @@ public class VRMenuUI : MonoBehaviour
         ResolveReferences();
         UpdateWorldMenuState();
 
+        bool menuIsInteractive = worldMenuActive && gameManager != null && !gameManager.IsPlaying;
+        if (menuIsInteractive && !menuWasInteractiveLastFrame)
+        {
+            waitForSubmitRelease = true;
+            nextJoystickNavigationTime = Time.unscaledTime + joystickNavigationRepeatDelay;
+        }
+
         if (!worldMenuActive || gameManager == null)
         {
+            menuWasInteractiveLastFrame = false;
             if (layoutRoot != null)
             {
                 layoutRoot.gameObject.SetActive(false);
@@ -95,14 +122,19 @@ public class VRMenuUI : MonoBehaviour
 
         if (gameManager.IsPlaying)
         {
+            menuWasInteractiveLastFrame = false;
             hoveredButton = null;
             RefreshButtonStyles();
             return;
         }
 
+        menuWasInteractiveLastFrame = true;
         UpdateCanvasPlacement();
         UpdateMenuContents();
-        UpdateInteraction();
+        hoveredButton = RaycastHoveredButton();
+        UpdateControllerNavigation();
+        HandleSubmit();
+        RefreshButtonStyles();
     }
 
     private void OnDisable()
@@ -110,6 +142,37 @@ public class VRMenuUI : MonoBehaviour
         if (gameManager != null)
         {
             gameManager.SetWorldSpaceMenuPresentation(false);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+        {
+            instance = null;
+        }
+
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
+    {
+        gameManager = null;
+        xrTracker = null;
+        mainCamera = null;
+        worldMenuActive = false;
+        menuWasInteractiveLastFrame = false;
+        hoveredButton = null;
+        waitForSubmitRelease = true;
+
+        if (menuCanvas != null)
+        {
+            menuCanvas.worldCamera = null;
+        }
+
+        if (layoutRoot != null)
+        {
+            layoutRoot.gameObject.SetActive(false);
         }
     }
 
@@ -139,7 +202,17 @@ public class VRMenuUI : MonoBehaviour
 
     private void UpdateWorldMenuState()
     {
-        bool shouldUseWorldMenu = IsVrDisplayRunning() && mainCamera != null && gameManager != null;
+        bool xrDetected = gameManager != null
+            && (gameManager.IsXrActive || gameManager.IsXrSessionDetected || IsVrDisplayRunning());
+        bool dependenciesReady = gameManager != null;
+        if (xrDetected && dependenciesReady)
+        {
+            worldMenuActivatedThisSession = true;
+        }
+
+        // Keep VR menu active after first detection to avoid transient XR polling drops
+        // from hiding the menu on restart/game-over transitions.
+        bool shouldUseWorldMenu = dependenciesReady && (xrDetected || worldMenuActivatedThisSession);
         if (worldMenuActive == shouldUseWorldMenu)
         {
             return;
@@ -290,14 +363,13 @@ public class VRMenuUI : MonoBehaviour
 
     private void UpdateCanvasPlacement()
     {
-        if (mainCamera == null)
+        Transform headTransform = xrTracker != null && xrTracker.HeadTransform != null
+            ? xrTracker.HeadTransform
+            : (mainCamera != null ? mainCamera.transform : null);
+        if (headTransform == null)
         {
             return;
         }
-
-        Transform headTransform = xrTracker != null && xrTracker.HeadTransform != null
-            ? xrTracker.HeadTransform
-            : mainCamera.transform;
 
         Vector3 flatForward = Vector3.ProjectOnPlane(headTransform.forward, Vector3.up);
         if (flatForward.sqrMagnitude < 0.001f)
@@ -366,17 +438,86 @@ public class VRMenuUI : MonoBehaviour
         }
     }
 
-    private void UpdateInteraction()
+    private void HandleSubmit()
     {
-        hoveredButton = RaycastHoveredButton();
-        RefreshButtonStyles();
-
-        if (!WasMenuClickPressed() || hoveredButton == null)
+        if (ShouldWaitForSubmitRelease() || !WasMenuSubmitPressed())
         {
             return;
         }
 
-        hoveredButton.ClickAction?.Invoke();
+        MenuButtonView targetButton = hoveredButton ?? actionButton;
+        if (targetButton == null)
+        {
+            return;
+        }
+
+        waitForSubmitRelease = true;
+        targetButton.ClickAction?.Invoke();
+    }
+
+    private void UpdateControllerNavigation()
+    {
+        if (gameManager == null)
+        {
+            return;
+        }
+
+        if (gameManager.IsPreGame)
+        {
+            float horizontalAxis = ReadLeftJoystickHorizontal();
+            if (Time.unscaledTime >= nextJoystickNavigationTime)
+            {
+                if (horizontalAxis >= joystickNavigationDeadzone)
+                {
+                    SelectAdjacentMode(1);
+                    nextJoystickNavigationTime = Time.unscaledTime + joystickNavigationRepeatDelay;
+                }
+                else if (horizontalAxis <= -joystickNavigationDeadzone)
+                {
+                    SelectAdjacentMode(-1);
+                    nextJoystickNavigationTime = Time.unscaledTime + joystickNavigationRepeatDelay;
+                }
+            }
+        }
+    }
+
+    private float ReadLeftJoystickHorizontal()
+    {
+        XRInputDevice leftDevice = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        if (leftDevice.isValid && leftDevice.TryGetFeatureValue(XRCommonUsages.primary2DAxis, out Vector2 axis))
+        {
+            return axis.x;
+        }
+
+        return 0f;
+    }
+
+    private void SelectAdjacentMode(int direction)
+    {
+        if (gameManager == null || !gameManager.IsPreGame || direction == 0)
+        {
+            return;
+        }
+
+        GameManager.GameMode[] modes =
+        {
+            GameManager.GameMode.Easy,
+            GameManager.GameMode.Medium,
+            GameManager.GameMode.Hard
+        };
+
+        int currentIndex = 0;
+        for (int i = 0; i < modes.Length; i++)
+        {
+            if (modes[i] == gameManager.CurrentMode)
+            {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        int nextIndex = (currentIndex + direction + modes.Length) % modes.Length;
+        gameManager.SelectMode(modes[nextIndex]);
     }
 
     private MenuButtonView RaycastHoveredButton()
@@ -401,7 +542,38 @@ public class VRMenuUI : MonoBehaviour
             : null;
     }
 
-    private bool WasMenuClickPressed()
+    private bool ShouldWaitForSubmitRelease()
+    {
+        if (!waitForSubmitRelease)
+        {
+            return false;
+        }
+
+        if (IsMenuSubmitHeld())
+        {
+            return true;
+        }
+
+        waitForSubmitRelease = false;
+        return false;
+    }
+
+    private bool IsMenuSubmitHeld()
+    {
+        bool xrHeld = xrTracker != null && xrTracker.JumpHeld;
+
+        Keyboard keyboard = Keyboard.current;
+        bool keyboardHeld = keyboard != null
+            && ((keyboard.enterKey != null && keyboard.enterKey.isPressed)
+                || (keyboard.spaceKey != null && keyboard.spaceKey.isPressed));
+
+        Mouse mouse = Mouse.current;
+        bool mouseHeld = mouse != null && mouse.leftButton.isPressed;
+
+        return xrHeld || keyboardHeld || mouseHeld;
+    }
+
+    private bool WasMenuSubmitPressed()
     {
         bool xrPressed = xrTracker != null && xrTracker.JumpPressedThisFrame;
 

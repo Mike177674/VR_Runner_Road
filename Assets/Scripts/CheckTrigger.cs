@@ -14,10 +14,14 @@ public class SectionTrigger : MonoBehaviour
 
     [Header("Skeleton obstacle spawning")]
     [SerializeField] private Transform skeletonTemplate;
-    [SerializeField, Range(0f, 1f)] private float skeletonSpawnChance = 1f;
+    [SerializeField, Range(0f, 1f)] private float skeletonSpawnChance = 0.75f;
+    [SerializeField, Min(0)] private int minSectionsBetweenSkeletonSpawns = 1;
+    [SerializeField, Min(0)] private int maxSectionsBetweenSkeletonSpawns = 3;
     [SerializeField] private bool spawnSkeletonsOnEasySections = true;
     [SerializeField] private bool hideTemplateSkeletonInScene = false;
     [SerializeField] private Vector3 skeletonLocalSpawnOffset = new Vector3(0f, 0f, 0f);
+    [SerializeField] private Vector2 skeletonLocalXJitterRange = new Vector2(-0.5f, 0.5f);
+    [SerializeField] private Vector2 skeletonLocalZJitterRange = new Vector2(-1.1f, 1.1f);
     [SerializeField] private Vector3 skeletonLocalRotationOffset = new Vector3(0f, -90f, 0f);
     [SerializeField] private bool logSkeletonSpawns = true;
 
@@ -25,9 +29,11 @@ public class SectionTrigger : MonoBehaviour
     private readonly HashSet<int> processedTriggerIds = new();
     private bool skeletonTemplatePrepared;
     private bool missingTemplateWarned;
+    private int sectionsUntilNextSkeletonSpawn;
 
     private void Awake()
     {
+        sectionsUntilNextSkeletonSpawn = RollSectionsUntilNextSkeletonSpawn();
         PrepareSkeletonTemplate();
     }
 
@@ -125,11 +131,22 @@ public class SectionTrigger : MonoBehaviour
             return;
         }
 
-        if (Random.value > skeletonSpawnChance)
+        if (sectionsUntilNextSkeletonSpawn > 0)
         {
+            sectionsUntilNextSkeletonSpawn--;
             if (logSkeletonSpawns)
             {
-                Debug.Log("SectionTrigger: Skipped skeleton spawn due to spawn chance.");
+                Debug.Log($"SectionTrigger: Waiting {sectionsUntilNextSkeletonSpawn} more sections for next skeleton.");
+            }
+            return;
+        }
+
+        if (Random.value > skeletonSpawnChance)
+        {
+            sectionsUntilNextSkeletonSpawn = RollSectionsUntilNextSkeletonSpawn();
+            if (logSkeletonSpawns)
+            {
+                Debug.Log($"SectionTrigger: Skipped skeleton spawn due to spawn chance. Next attempt in {sectionsUntilNextSkeletonSpawn} sections.");
             }
             return;
         }
@@ -138,22 +155,34 @@ public class SectionTrigger : MonoBehaviour
         obstacle.name = $"{skeletonTemplate.gameObject.name}_Spawned";
         obstacle.SetActive(true);
 
+        float localXOffset = Random.Range(skeletonLocalXJitterRange.x, skeletonLocalXJitterRange.y);
+        float localZOffset = Random.Range(skeletonLocalZJitterRange.x, skeletonLocalZJitterRange.y);
+        Vector3 randomizedOffset = skeletonLocalSpawnOffset + new Vector3(localXOffset, 0f, localZOffset);
+
         Transform obstacleTransform = obstacle.transform;
-        obstacleTransform.position = spawnedSection.transform.TransformPoint(skeletonLocalSpawnOffset);
+        obstacleTransform.position = spawnedSection.transform.TransformPoint(randomizedOffset);
         obstacleTransform.rotation = spawnedSection.transform.rotation * Quaternion.Euler(skeletonLocalRotationOffset);
         obstacleTransform.SetParent(spawnedSection.transform, true);
+        sectionsUntilNextSkeletonSpawn = RollSectionsUntilNextSkeletonSpawn();
 
         EnsureObstacleCollision(obstacle);
 
         if (logSkeletonSpawns)
         {
-            Debug.Log($"SectionTrigger: Spawned skeleton '{obstacle.name}' at {obstacleTransform.position}.");
+            Debug.Log($"SectionTrigger: Spawned skeleton '{obstacle.name}' at {obstacleTransform.position}. Next spawn in {sectionsUntilNextSkeletonSpawn} sections.");
         }
     }
 
     private bool HasNonEasySectionsConfigured()
     {
         return roadSections != null && roadSections.Length > 1;
+    }
+
+    private int RollSectionsUntilNextSkeletonSpawn()
+    {
+        int minSections = Mathf.Max(0, minSectionsBetweenSkeletonSpawns);
+        int maxSections = Mathf.Max(minSections, maxSectionsBetweenSkeletonSpawns);
+        return Random.Range(minSections, maxSections + 1);
     }
 
     private static void EnsureObstacleCollision(GameObject obstacleRoot)
