@@ -6,7 +6,7 @@ public class RunnerLateralMovement : MonoBehaviour
 {
     [Header("Movement")]
     [SerializeField] private InputActionReference moveAction;
-    [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float moveSpeed = 6.5f;
     [SerializeField] private float maxSideDistance = 2f;
     [SerializeField, Range(0f, 1f)] private float inputDeadzone = 0.2f;
 
