@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿// Keyboard demo script from the RedDragon asset — disabled; game uses DragonAudio instead.
+#if false
+using UnityEngine;
 using System.Collections;
 
 public class DragonExample : MonoBehaviour
@@ -504,3 +506,4 @@ public class DragonExample : MonoBehaviour
         }
     }
 }
+#endif
